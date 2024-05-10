@@ -2,7 +2,9 @@
 title: "Plotting stop and search: First pass"
 author: Jolyon Miles-Wilson
 date: today
-format: html
+format: 
+  html: 
+    embed-resources: true
 execute: 
   warning: false
   message: false
