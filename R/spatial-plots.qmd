@@ -1,0 +1,92 @@
+---
+title: "Plotting stop and search: First pass"
+author: Jolyon Miles-Wilson
+date: today
+format: html
+execute: 
+  warning: false
+  message: false
+editor: visual
+---
+
+This script combines spatial data to summarised stop and search data so that it can be plotted geographically.
+
+```{r}
+library(tidyverse)
+library(sf)
+library(leaflet)
+```
+
+First, load the summary data
+
+```{r}
+pattern <- " Black"
+files <- list.files(path = "../outputs/data/", pattern = pattern, full.names = TRUE)
+data <- read_csv(files)
+```
+
+Next, load the spatial data
+
+```{r}
+path <- "../data/LAD_23_boundaries"
+pattern <- "*.shp"
+files <- list.files(path, pattern, full.names = TRUE)
+lads <- sf::st_read(files[1])
+```
+
+Join the summary data with the spatial data
+
+```{r}
+spatial_data <- st_as_sf(merge(data, lads, by.x = "la_code", by.y = "LAD23CD"))
+
+# convert to leaflet compatible
+leaf <- sf::st_transform(spatial_data, crs = '+proj=longlat +datum=WGS84')
+
+# Try st_simplify to make leaflet smaller - doesn't work
+#leaf_2 <- sf::st_simplify(leaf)
+```
+
+```{r eval=FALSE}
+readr::write_csv(spatial_data, "../outputs/data/black_summary_spatial.csv")
+sf::st_write(spatial_data, "../outputs/data/black_summary_spatial.shp", delete_dsn = TRUE)
+```
+
+# Try a (first, broken) plot using leaflet
+
+```{r eval=FALSE, include=FALSE}
+pal <- colorNumeric(palette="RdYlBu", domain=leaf$rr, na.color="transparent")
+
+m <- leaflet(leaf) %>%
+  #addTiles() %>%
+  addPolygons(fillColor = ~pal(rr),
+              stroke = TRUE, weight = 0.5, color = "black") %>%
+  addLegend(pal = pal, 
+            values = ~rr, position = "bottomleft")
+m
+```
+
+Using leaflet is too big for html. Possible solutions:
+
+-   st_simplify - doesn't work
+
+-   embed-resources: false - doesn't owrk
+
+-   lower resolution boundaries
+
+# Try simpler plot using plot()
+
+```{r}
+plot(leaf["rr"])
+```
+
+## Plot only areas where approximation is reliable
+
+```{r}
+leaf_2 <- leaf %>%
+  mutate(
+    rr = case_when(!is.na(warning) ~ NA,
+                   TRUE ~ rr)
+  )
+
+plot(leaf_2["rr"])
+```
