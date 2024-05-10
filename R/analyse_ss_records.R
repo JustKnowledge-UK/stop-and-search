@@ -362,7 +362,7 @@ analyse_ss_records <- function(data,
     names(dfs)[h] <- ethnicity_2
 
     if(csvs == T){
-      write_csv(combined, file = paste0("./data/",Sys.Date(), " - ", ethnicity_2, "_summarised_stops_2019-2021.csv"))
+      write_csv(combined, file = paste0("./data/",Sys.Date(), " - ", ethnicity_2, "_summarised_stops.csv"))
     }
 
   } # ethnicity loop (h) ends
