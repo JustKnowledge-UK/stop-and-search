@@ -89,7 +89,7 @@ m <- leaflet(stop_data_coords) %>%
   #addTiles() %>%
   addPolygons(fillColor = ~pal(rr),
               stroke = TRUE, weight = 0.5, color = "black",
-              label = ~lapply(paste0(ward, "<br>", round(rr,2),label), htmltools::HTML),
+              label = ~lapply(paste0(ward, "<br>", round(rr,2)," (", round(rr_ci_low,2), "-", round(rr_ci_upp,2), ")", label), htmltools::HTML),
               #label = ~paste0(lad21nm, "<br>", often_always_percent, "%"),
               ) %>%
   addLegend(pal = pal, 
