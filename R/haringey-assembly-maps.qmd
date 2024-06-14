@@ -1,0 +1,100 @@
+---
+title: "Haringey-assembly-maps"
+format: html
+editor: visual
+---
+
+```{r}
+rm(list = ls())
+
+```
+
+```{r}
+library(sf)
+library(leaflet)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+stop_data <- readRDS("../data/haringey_ward_stops.rds")
+coord_data <- readRDS("../data/cmwards_haringey_coords.rds")
+```
+
+```{r}
+wards_sf_list <- list()
+
+# Loop through each ward in coord_data and convert to sf object
+for (ward_name in names(coord_data)) {
+  # Extract coordinates
+  coords <- coord_data[[ward_name]][["coords"]][[1]]
+  
+  # Create a polygon from the coordinates
+  polygon <- st_polygon(list(as.matrix(coords)))
+  
+  # Create an sf object with the ward name and polygon
+  ward_sf <- st_sf(
+    ward = ward_name,
+    geometry = st_sfc(polygon)
+  )
+  
+  # Append the sf object to the list
+  wards_sf_list[[ward_name]] <- ward_sf
+}
+
+# Combine all sf objects into a single spatial data frame
+wards_sf <- do.call(rbind, wards_sf_list)
+```
+
+```{r}
+stop_data_coords <- merge(stop_data, wards_sf, by = "ward") %>%
+  st_as_sf(., crs = '+proj=longlat +datum=WGS84')
+```
+
+```{r}
+
+stop_data_coords <- stop_data_coords %>%
+  mutate(
+    label = case_when(!is.na(warning) ~ "*",
+                      TRUE ~ "")
+  )
+
+stop_data_coords <- stop_data_coords %>%
+  mutate(centroid = st_centroid(geometry)
+  ) %>%
+  mutate(
+    x = st_coordinates(centroid)[,1],
+    y = st_coordinates(centroid)[,2]
+  )
+
+stop_data_coords %>%
+  ggplot() + 
+  geom_sf(aes(fill = rr), color = 'black') +
+  geom_text(aes(x = x, y = y, label = label)) +
+  theme_void() +
+  scale_fill_viridis_c(name = "Risk ratio") +
+  ggtitle("Disproportionality in Haringey wards May '23 - April '24") +
+  labs(caption = "Note: * indicates areas where the exact value is uncertain")
+
+ggsave(filename = "../outputs/haringey-disp.png", device = "png", height=7, width=10, bg="white", dpi=700)
+```
+
+```{r}
+
+pal <- colorNumeric(palette = "viridis", domain=stop_data_coords$rr, na.color="grey")
+
+m <- leaflet(stop_data_coords) %>%
+  #addTiles() %>%
+  addPolygons(fillColor = ~pal(rr),
+              stroke = TRUE, weight = 0.5, color = "black",
+              label = ~lapply(paste0(ward, "<br>", round(rr,2),label), htmltools::HTML),
+              #label = ~paste0(lad21nm, "<br>", often_always_percent, "%"),
+              ) %>%
+  addLegend(pal = pal, 
+            values = ~rr, position = "bottomleft", title = "",
+            ) %>%
+  addControl("Note: * indicates areas where the exact value is uncertain",position = "bottomright") %>%
+  addProviderTiles(providers$CartoDB.Positron) # %>%#
+  #addProviderTiles(providers$Stadia.StamenTonerBackground)
+m
+```
