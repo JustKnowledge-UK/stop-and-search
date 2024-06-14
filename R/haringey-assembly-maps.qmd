@@ -1,14 +1,21 @@
 ---
-title: "Haringey-assembly-maps"
+title: "Haringey Community Assembly 2024"
+subtitle: "Stop and search"
+title-block-banner: black
+title-block-banner-color: white
+date: today
 format: 
   html:
     embed-resources: true
+    code-fold: true
+execute:
+  echo: false
+  warning: false
 editor: visual
 ---
 
 ```{r}
 rm(list = ls())
-
 ```
 
 ```{r}
@@ -16,12 +23,117 @@ library(sf)
 library(leaflet)
 library(dplyr)
 library(ggplot2)
+library(readr)
 ```
+
+# Disproportionality in London 
+
+```{r}
+lon_data <- read_csv("../data/2023-08-16 - Black_summarised_stops_2019-2021.csv") %>%
+  filter(region == "London" & date == 2021)
+
+london_lads <-  c("E09000001",
+                  "E09000002",
+                  "E09000003",
+                  "E09000004", 
+                  "E09000005", 
+                  "E09000006", 
+                  "E09000007", 
+                  "E09000008", 
+                  "E09000009", 
+                  "E09000010", 
+                  "E09000011", 
+                  "E09000012", 
+                  "E09000013",
+                  "E09000014", 
+                  "E09000015", 
+                  "E09000016", 
+                  "E09000017",
+                  "E09000018", 
+                  "E09000019", 
+                  "E09000020", 
+                  "E09000021",
+                  "E09000022", 
+                  "E09000023",
+                  "E09000024", 
+                  "E09000025",
+                  "E09000026", 
+                  "E09000027", 
+                  "E09000028", 
+                  "E09000029",
+                  "E09000030", 
+                  "E09000031", 
+                  "E09000032", 
+                  "E09000033")
+
+lon_coords <- read_sf("../data/LAD21boundaries/LAD_DEC_2021_GB_BFC.shp") %>%
+  janitor::clean_names() %>%
+  filter(lad21cd %in% london_lads)
+  
+  
+```
+
+```{r}
+stop_data_coords <- lon_data %>%
+  merge(., lon_coords[,c('lad21cd', 'geometry')], by.x = "la_code", by.y = "lad21cd") %>%
+  st_as_sf(.) %>%
+  st_transform(., crs = '+proj=longlat +datum=WGS84') 
+
+```
+
+```{r output=F}
+stop_data_coords <- stop_data_coords %>%
+  mutate(
+    label = case_when(!is.na(warning) ~ "*",
+                      TRUE ~ "")
+  )
+
+stop_data_coords <- stop_data_coords %>%
+  mutate(centroid = st_centroid(geometry)
+  ) %>%
+  mutate(
+    x = st_coordinates(centroid)[,1],
+    y = st_coordinates(centroid)[,2]
+  )
+
+stop_data_coords %>%
+  ggplot() + 
+  geom_sf(aes(fill = rr), color = 'black') +
+  geom_text(aes(x = x, y = y, label = label)) +
+  theme_void() +
+  scale_fill_viridis_c(name = "Risk ratio") +
+  ggtitle("Disproportionality across London") +
+  labs(caption = "Note: * indicates areas where the exact value is uncertain")
+
+ggsave(filename = "../outputs/london-disp.png", device = "png", height=7, width=10, bg="white", dpi=700)
+```
+
+```{r}
+pal <- colorNumeric(palette = "viridis", domain=stop_data_coords$rr, na.color="grey")
+
+m <- leaflet(stop_data_coords) %>%
+  #addTiles() %>%
+  addPolygons(fillColor = ~pal(rr),
+              stroke = TRUE, weight = 0.5, color = "black",
+              label = ~lapply(paste0(la, "<br>", round(rr,2)," (", round(rr_ci_low,2), "-", round(rr_ci_upp,2), ")", label), htmltools::HTML),
+              #label = ~paste0(lad21nm, "<br>", often_always_percent, "%"),
+              ) %>%
+  addLegend(pal = pal, 
+            values = ~rr, position = "bottomleft", title = "",
+            ) %>%
+  addControl("Disproportionality across London", position = "topright") %>%
+  addProviderTiles(providers$CartoDB.Positron) # %>%#
+  #addProviderTiles(providers$Stadia.StamenTonerBackground)
+m
+```
+
+# Disproportionality in Haringey
 
 ```{r}
 stop_data <- readRDS("../data/haringey_ward_stops.rds")
 coord_data <- readRDS("../data/cmwards_haringey_coords.rds")
 ```
+
 
 ```{r}
 wards_sf_list <- list()
@@ -53,8 +165,7 @@ stop_data_coords <- merge(stop_data, wards_sf, by = "ward") %>%
   st_as_sf(., crs = '+proj=longlat +datum=WGS84')
 ```
 
-```{r}
-
+```{r output = F}
 stop_data_coords <- stop_data_coords %>%
   mutate(
     label = case_when(!is.na(warning) ~ "*",
@@ -100,3 +211,5 @@ m <- leaflet(stop_data_coords) %>%
   #addProviderTiles(providers$Stadia.StamenTonerBackground)
 m
 ```
+
+
